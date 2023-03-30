@@ -1,6 +1,7 @@
 package uz.najottalim.demo.streamapi;
 
 import java.time.LocalDate;
+import java.time.Month;
 import java.util.*;
 import java.util.function.*;
 import java.util.stream.Collectors;
@@ -172,6 +173,8 @@ public class StreamApiTest {
                 .mapToDouble(Product::getPrice)
                 .average().getAsDouble();
 
+        
+
         Assertions.assertEquals(expected,answer);
 
     }
@@ -224,6 +227,18 @@ public class StreamApiTest {
         // yordam (murakkamroq): birinchi shu sanadagi orderlarni olin
         // keyn har bir orderga tegishli produktni
         // olish kerak
+        Set<Product> products = orderRepo.findAll()
+                .stream()
+                .filter(order -> order.getOrderDate()
+                        .isEqual(LocalDate.of(2021, Month.MARCH, 15)))
+                .flatMap(order -> order.getProducts().stream())
+                .collect(Collectors.toSet());
+
+        Assertions.assertEquals(products.size(), expected.size());
+
+        for (Product product : expected) {
+            Assertions.assertTrue(products.contains(product));
+        }
     }
 
     //9 chi vazifa
@@ -233,6 +248,36 @@ public class StreamApiTest {
             "zakazlarni eng kop zakaz qilgan 10 ta customerni chiqaring")
     public void exercise4_3() {
         List<Customer> expected = solution4_3();
+        Map<Integer, List<Customer>> mapOfLevel = customerRepo.findAll()
+                .stream()
+                .collect(() -> new HashMap<Integer, List<Customer>>(),
+                        (map, customer) -> {
+                            Integer daraja = customer.getTier();
+//                            List<Customer> customers = map.get(daraja);
+//                            if (customers == null) {
+//                                List<Customer> yangiList = new ArrayList<>();
+//                                yangiList.add(customer);
+//                                map.put(daraja, yangiList);
+//                            } else {
+//                                customers.add(customer);
+//                            }
+                            map.merge(daraja,
+                                    new ArrayList<>(List.of(customer)),
+                                    (oldingiList, yangList) -> {
+                                        oldingiList.addAll(yangList);
+                                        return oldingiList;
+                                    });
+                        }, (map1, map2) -> {
+                            map1.putAll(map2);
+                        });
+        Map<Integer, List<Customer>> mapOfLevel1 = customerRepo.findAll()
+                .stream()
+                .collect(Collectors.groupingBy(customer -> customer.getTier()));
+
+        Map<Integer, Long> levelCount = customerRepo.findAll()
+                .stream()
+                .collect(Collectors.groupingBy(customer -> customer.getTier(),
+                        Collectors.counting()));
         // yordam (murakkamroq):
         // birinchi xamma 2021 zakazlarni olish kerak
         // keyin map ochib xar bitta zakaz uchun produktlar
@@ -250,7 +295,19 @@ public class StreamApiTest {
             "01-Feb-2021 va 01-Apr-2021 oralig'ida zakaz qilingan produktlarni oling")
     public void exercise4() {
         List<Product> expected = solution4();
+        var productsInFebApr = orderRepo.findAll()
+                .stream()
+                .filter(order -> order.getCustomer().getTier() == 2)
+                .filter(order -> !order.getOrderDate().isBefore(LocalDate.of(2021, Month.FEBRUARY,1)))
+                .filter(order -> !order.getOrderDate().isAfter(LocalDate.of(2021,Month.APRIL,1)))
+                .flatMap(order -> order.getProducts().stream())
+                .collect(Collectors.toSet());
 
+        Assertions.assertEquals(productsInFebApr.size(),expected.size());
+
+        for (Product product: expected) {
+            Assertions.assertTrue(productsInFebApr.contains(product));
+        }
     }
 
     @Test
@@ -265,6 +322,8 @@ public class StreamApiTest {
     @DisplayName("Obtain a list of product with category = \"Books\" and price > 100 (using BiPredicate for filter)")
     public void exercise1b() {
         List<Product> expected = solution1b();
+
+
     }
 
 
@@ -287,6 +346,13 @@ public class StreamApiTest {
             "Eng oxiri zakaz qilingan 3 zakazni oling")
     public void exercise6() {
         List<Order> expected = solution6();
+        List<Order> orderList = orderRepo.findAll()
+                .stream()
+                .sorted(Comparator.comparing(Order :: getOrderDate).reversed())
+                .limit(3)
+                .collect(Collectors.toList());
+
+        Assertions.assertEquals(expected, orderList);
     }
 
 
@@ -325,6 +391,12 @@ public class StreamApiTest {
             "order idni order produkt kountiga mapini oling")
     public void exercise11() {
         Map<Long, Integer> expected = solution11();
+
+        Map<Long, Integer> collect = orderRepo.findAll()
+                .stream()
+                .collect(Collectors.toMap(order -> order.getId(), order -> order.getProducts().size()));
+
+        Assertions.assertEquals(expected,collect);
     }
 
 
@@ -333,6 +405,12 @@ public class StreamApiTest {
             "Customerni orderlarini mapini oling")
     public void exercise12() {
         Map<Customer, List<Order>> expected = solution12();
+
+        Map<Customer, List<Order>> collect = orderRepo.findAll()
+                .stream()
+                .collect(Collectors.groupingBy(order -> order.getCustomer()));
+
+        Assertions.assertEquals(expected,collect);
     }
 
 
@@ -341,6 +419,17 @@ public class StreamApiTest {
             "Customer idlarini order idlarga mapini oling")
     public void exercise12a() {
         HashMap<Long, List<Long>> expected = solution12a();
+
+        HashMap<Long, List<Long>> collect = orderRepo.findAll()
+                .stream()
+                .collect(
+                        Collectors.groupingBy(
+                                order -> order.getCustomer().getId(),
+                                HashMap::new,
+                                Collectors.mapping(Order::getId, Collectors.toList())
+                        ));
+
+        Assertions.assertEquals(expected,collect);
     }
 
 
@@ -349,6 +438,16 @@ public class StreamApiTest {
             "Orderlarni umumiy narxga mapini oling")
     public void exercise13() {
         Map<Order, Double> expected = solution13();
+
+        Map<Order, Double> collect = orderRepo.findAll()
+                .stream()
+                .collect(
+                        Collectors.toMap(
+                                Function.identity(),
+                                order -> order.getProducts().stream()
+                                        .mapToDouble(Product::getPrice).sum()
+                        ));
+        Assertions.assertEquals(expected,collect);
     }
 
 
